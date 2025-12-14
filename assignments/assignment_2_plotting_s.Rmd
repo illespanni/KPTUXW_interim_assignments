@@ -1,6 +1,6 @@
 ---
-title: 'Assignment 2: Data visualization'
-author: "Tamas Nagy"
+title: 'Assignment 2: Data visualization solutions'
+author: "Anna Noemi Illes"
 output: html_document
 editor_options: 
   chunk_output_type: console
@@ -14,12 +14,15 @@ You will have to create 3 plots based on the datasets and instructions detailed 
 -   Reporting using RMarkdown
 -   Using Git and Github (for submitting the task)
 -   Data manipulation (e.g. dplyr, tidyr), and working with factors (forcats)
--   Data visuzlization (ggplot2)
+-   Data visualization (ggplot2)
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 library(tidyverse)
 library(tidytuesdayR)
+library(viridis)
+library(forcats)
+library(scales)
 ```
 
 ## Task 1: Climbing expeditions
@@ -30,9 +33,43 @@ The 2020-09-22 TidyTueday datasets are about climbing expeditions. From the thre
 -   The bars are ordered by the sum of all expeditions (use `fct_reorder()`).
 -   The bar colors use the viridis palette and light theme.
 
-```{r}
-
+```{r read-in}
+members <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2020/2020-09-22/members.csv')
+expeditions <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2020/2020-09-22/expeditions.csv')
+peaks <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2020/2020-09-22/peaks.csv')
 ```
+
+```{r}
+expedition_top15 <- expeditions %>% 
+  mutate(peak_name = fct_lump(peak_name, n = 15)) %>%
+  filter(peak_name != "Other") %>%
+  group_by(peak_name, season) %>%
+  summarize(n_expeditions = n()) %>%
+  mutate(peak_name = fct_reorder(peak_name, n_expeditions, sum))
+```
+
+```{r}
+ggplot(
+  expedition_top15,
+  aes(x = fct_reorder(peak_name, n_expeditions, sum),y = n_expeditions, fill = season)) +
+  geom_col() +
+  coord_flip() + labs(
+  title = "The 15 most popular peaks stacked by season of expedition",
+  x = NULL,
+  y = "Number of expeditions",
+  fill = "season"
+) + scale_fill_viridis(discrete = TRUE) + theme_light() + theme(
+    legend.position = "bottom",
+    legend.key.size = unit(0.7, "cm"),
+    legend.text = element_text(size = 12),
+    legend.title = element_text(size = 12),
+    axis.text.x = element_text(size = 10),
+    axis.text.y = element_text(size = 10),
+    axis.title.x = element_text(size = 13),
+    plot.title = element_text(size = 15)
+  ) 
+```
+
 
 ## Task 2: PhDs awarded
 
@@ -45,7 +82,24 @@ Notes:
 -   The line size is 1.2, the colors are from the brewer "Dark2" palette. The theme is set to minimal.
 
 ```{r}
+phd_field <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2019/2019-02-19/phd_by_field.csv")
+```
 
+```{r}
+phd_n_field <- phd_field %>%
+  drop_na() %>% 
+  group_by(year, broad_field) %>%
+  summarize(n_phds = sum(n_phds))
+```
+
+
+```{r}
+ggplot(phd_n_field, aes(year, n_phds, color = broad_field)) + geom_line(size = 1.2) + theme_minimal() + labs(
+  title = "Number of awarded Ph.D.-s in the US by year",
+  x = NULL,
+  y = NULL,
+) +   scale_x_continuous(breaks = pretty_breaks()) +
+  scale_y_continuous(labels = comma_format()) + scale_color_brewer(palette = "Dark2")
 ```
 
 ## Task 3: Commute in the US
@@ -59,5 +113,39 @@ Notes:
 -   The point size is 2, . The theme is set to light.
 
 ```{r}
-
+commute_mode <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2019/2019-11-05/commute.csv")
 ```
+
+
+```{r}
+commute_n_state <- commute_mode %>%
+    filter(
+    !is.na(state),
+    !is.na(mode),
+    !is.na(n)
+  ) %>% 
+  group_by(state_abb, mode, state_region) %>% 
+  summarize(n = sum(n))
+
+commute_wide <- commute_n_state %>%
+  filter(mode %in% c("Walk", "Bike")) %>%
+  pivot_wider(
+    names_from = mode,
+    values_from = n,
+    values_fill = 0
+  )
+```
+
+```{r}
+ggplot(commute_wide, aes(x = Walk, y = Bike, color = state_region)) + geom_jitter(size = 2) + geom_text(aes(label = state_abb), color = "black") +
+  scale_x_log10(labels = comma_format()) +
+  scale_y_log10(labels = comma_format()) + 
+  theme_light() +
+  labs(
+  title = "Number of people walking vs. biking to work in each USA state",
+  x = "Number or ppl walking to work (log N)",
+  y = "Number of ppl biking to work (log N)",
+  color = "State region"
+)
+```
+
