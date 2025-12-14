@@ -125,25 +125,34 @@ rare_ingredients <- cocktail_cleaned %>%
 
 ## 8. Which cocktail has an ingredient that is only used in one cocktail?
 
+*A total of 21 cocktails have rare ingredients.*
+
 ```{r}
 ingredient_usage <- cocktail_cleaned %>%
   group_by(ingredients, name) %>%
   summarise(n_cocktails = n_distinct(name)) %>% 
-  filter(n() == 1) %>% 
-  ungroup() %>%
-  select(name)
+  filter(n() == 1) 
+
+cocktails_rare_ingredients <- cocktail_cleaned %>%
+  filter(ingredients %in% ingredient_usage$ingredients) %>%
+  distinct(name)
 ```
 
 ## 9. What are the cocktails without rare ingredients?
 
+*There are a total of 34 cocktails on the list with no rare ingredients.*
+
 ```{r}
-common_ingredients <-
-  cocktail_cleaned %>%
-  group_by(ingredients, name) %>%
-  summarise(n_cocktails = n_distinct(name)) %>% 
-  filter(n() != 1) %>% 
-  ungroup() %>%
-  select(name)
+cocktails_with_rare <- cocktail_cleaned %>%
+  filter(ingredients %in% rare_ingredients$ingredients) %>%
+  distinct(name)
+
+common_ingredients <- cocktail_cleaned %>%
+  filter(!name %in% cocktails_with_rare$name) %>%
+  group_by(name) %>%
+  summarise(n_ingredients = n_distinct(ingredients)) %>%
+  filter(n_ingredients > 1) %>%
+  arrange(desc(n_ingredients))
 ```
 
 ## 10. Create a cheat sheet for the bartender!
