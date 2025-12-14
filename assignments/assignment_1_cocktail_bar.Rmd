@@ -44,9 +44,9 @@ The ingredients are currently in a single cell for each cocktail. It would be be
 
 cocktail_cleaned <- cocktail %>%
   mutate(ingredients = str_replace_all(ingredients, "<[^>]+>", "|")) %>%
-  separate_rows(ingredients, sep = "\\|") %>% 
+  separate_rows(ingredients, sep = "\\||\\s+or\\s+") %>% 
   mutate(ingredients = ingredients %>% 
-           str_remove_all("\\d+\\s*/?\\d*\\s*(oz|drops|tsp|tbsp|bsp)") %>% 
+           str_remove_all("\\d+\\s*/?\\d*\\s*(oz|drops|tsp|tbsp|bsp|dashes|dash)") %>% 
            str_remove_all("\\([^)]*%.*?\\)") %>% 
            str_remove_all("\\b\\d+\\b") %>%
            str_remove_all("\\b\\d+\\.\\d+\\b") %>%
@@ -71,6 +71,8 @@ ingredients_list <- cocktail_cleaned %>%
 
 How many different ingredients you will need?
 
+*A total of 65 ingredients are necessary for the cocktails.*
+
 ```{r}
 count(ingredients_list)
 ```
@@ -78,6 +80,8 @@ count(ingredients_list)
 ## 5. What are the top 10 ingredients?
 
 What are the 10 most frequently used ingredients? If there are ties, you can list more than 10.
+
+*The 10 most common ingredients are: lemon juice, simple syrup, gin, sweet vermouth, angostura bitters, lime juice, saline solution, water, rye, cognac, luxardo maraschino*
 
 ```{r}
 ingredients_10 <- cocktail_cleaned %>% 
@@ -91,6 +95,8 @@ ingredients_10 <- cocktail_cleaned %>%
 
 Count the number of ingredients and filter all the cocktails that has that many.
 
+*The following cocktails have the most ingredients: Blender Margarita, Carbonated Negroni, Clover Club, De La Louisiane, Pink Lady, Vieux Carre.*
+
 ```{r}
 cocktail_ingredients <- cocktail_cleaned %>% 
   group_by(name) %>% 
@@ -103,7 +109,9 @@ cocktail_most_ingredients <- cocktail_ingredients %>%
 
 ## 7. How many ingredients appear in only one cocktail (rare ingredient)?
 
-Count all cocktails with only one ingredient, and
+Count all cocktails with only one ingredient. 
+
+*There are a total of 25 ingredients that appear in a single cocktail: absinthe, absolute citron vodka, agarclarified grapefruit juice, amer picon, centrifugeclarified grapefruit juice, cherry herring, cranberry juice, crem de violette, demerara syrup, dolin dry vermouth, drambuie, drop saline, fernet branca, heavy cream, hellfire bitters, lairds applejack bottled in bond, luxardo marschino, old tom gin, pisco, quinine simple syrup, sloe gin, sugared proof rum, sugared proof rye, white creme de cacao, white mezcal, simple*
 
 ```{r}
 rare_ingredients <- cocktail_cleaned %>% 
@@ -112,6 +120,7 @@ rare_ingredients <- cocktail_cleaned %>%
   arrange(n_ingredients) %>% 
   filter(n_ingredients == 1) 
 
+# is the ingredient "simple" a mistake? I checke the original data and there wasn't any additional information there so it wasn't accidentally deleted
 ```
 
 ## 8. Which cocktail has an ingredient that is only used in one cocktail?
