@@ -1,14 +1,21 @@
 ---
-title: "Assignment 6: "
-author: "Marton Kovacs"
+title: "Assignment 6 solutions"
+author: "Anna Noemi Illes"
 output: html_document
-editor_options: 
-  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
+library(psych)         
+library(GPArotation)
+library(knitr)
+library(kableExtra)
+library(corrplot)
+library(viridis)
+library(viridisLite)
+library(qgraph)
+
 ```
 
 # Introduction
@@ -103,13 +110,13 @@ Talk about the limitations of your study and findings.
 Read the Animal Rights Scale (ARQ) dataset from the 'data/' folder. Pay attention to the extension.
 
 ```{r}
-
+arq <- read_csv("/Users/illesanna/Desktop/DOKUMENTUMOK/ELTE/MESTER/semester1/data_analysis_r/KPTUXW_interim_assignments/KPTUXW_interim_assignments/data/assignment_5_dataset.csv")
 ```
 
 ## EDA
 
 ```{r}
-
+summary(arq)
 ```
 
 ## Data manipulation
@@ -119,108 +126,314 @@ Recode the sex and party variables as factor type variables with the following l
   * party: 1 - democrat, 2 - republican, 3 - other, 4 - none
 
 ```{r}
-
+arq_new <- arq %>% 
+  mutate(
+    sex = factor(sex,
+                 levels = c(1, 2),
+                 labels = c("male", "female")),
+    party = factor(party,
+                   levels = c(1, 2, 3, 4),
+                   labels = c("democrat", "republican", "other", "none"))
+  )
 ```
 
 # Creating a correlation matrix
 
 __Note:__ Remember to only include the variables of the questionnaire that will be part of the factor analysis.
 
-```{r}
-
-```
-
-Create the correlation matrix.
+*Create the correlation matrix.*
 
 ```{r}
+arq_fa <- arq_new %>%
+  select(-c(29, 30, 31))
+
+correlation1 <- cor(
+  arq_fa,
+  use = "pairwise.complete.obs"
+)
 
 ```
 
 ## Visualizing the correlation matrix
 
-Create a visualization of the results of the correlation matrix.
+*Create a visualization of the results of the correlation matrix.*
+
+A correlation plot was created in order to check for significant correlations among items. A particularly strong positive correlation can be observed between ar5 and ar 13 (0.83), ar12 and ar15 (0.66) indicating a common underlying latent variable.
 
 ```{r}
-
+corrplot(correlation1, method = "color",
+         type = "upper",          
+         tl.col = "black",         
+         tl.srt = 45,             
+         addCoef.col = "black",   
+         number.cex = 0.7,         
+         diag = FALSE) 
 ```
 
 ## Test for factorability
 
-Calculate the KMO score.
+*Calculate the KMO score.*
+
+The suitability of the data for factor analysis was assessed using the **Kaiser-Meyer-Olkin (KMO)** measure of sampling adequacy and **Bartlett’s test of sphericity**. The KMO statistic indicated high sampling adequacy *(KMO = 0.88)*. Bartlett’s test was significant *(p < .001)*, suggesting that the correlation matrix was not an identity matrix and that factor analysis was appropriate. 
 
 ```{r}
+KMO(arq_fa)
 
+cortest.bartlett(
+  correlation1,
+  n = nrow(arq_fa)
+)
 ```
 
 ## Test for multivariate normality
 
-```{r}
-
-```
-
-Test for skewness and kurtosis.
+**Mardia’s tests** indicated that the data deviated from multivariate normality. Both **skewness** *(b1p = 235.50, skew(378) = 5887.38, p < .001)* and **kurtosis** *(b2p = 920.52, kurtosis = 12.03, p < .001)* were significant, suggesting non-normality in the multivariate distribution of the 28 variables included in the analysis (n = 150).
 
 ```{r}
-
+mardia <- mardia(arq_fa)
+mardia
 ```
+
+Skewness and kurtosis were individually checked across all 28 variables included in the analysis. The following variables were flagged, as these exceed the conventional threshold of -1 ans 1 for both skewness and kurtosis:
+- ar3: moderate skewness, high kurtosis
+- ar10: moderate skewness, moderate kurtosis
+- ar14: moderate skewness, high kurtosis
+- ar26: moderate skewness, moderate kurtosis
+
+I opted for excluding these variables from further analysis in order to receive a clear factor structure not affected by extreme deviations from normality. 
+
+```{r}
+describe(arq_fa)[, c("skew", "kurtosis")]
+```
+
+
+```{r}
+arq_fa_clean <- arq_fa %>%
+  select(-c(3, 10, 14, 26))
+
+mardia_clean <- mardia(arq_fa_clean)
+mardia_clean
+```
+
+As the **Mardia's test** still indicated significant deviation from normality, I further excluded ar22 from the analysis as this variable also demonstrated moderate skewness and kurtosis.
+
+```{r}
+arq_fa_final <- arq_fa %>%
+  select(-c(3, 10, 14, 22, 26))
+
+mardia_final <- mardia(arq_fa_final)
+mardia_final
+
+correlation <- cor(
+  arq_fa_final,
+  use = "pairwise.complete.obs"
+)
+```
+
 
 ## Create scree plot
 
-Create a scree plot to help the decision on how many factors to include.
+Create a **scree plot** to help the decision on how many factors to include.
+
+To determine the number of factors, both a **scree plot** and a **parallel analysis** were employed. The scree plot suggested retaining **two factors**, all with eigenvalues above 1, in accordance with the Kaiser criterion. The parallel analysis, which compared the observed eigenvalues with those obtained from randomly generated data, suggested that **three** factors should be retained. A total of **two factors** are located above the elbow, the point from which a steep decline can be detected. 
+
+I retained a total of *two factors* as this point also marks the point of inflection (elbow).
 
 ```{r}
+scree(arq_fa_final)
 
+fa.parallel(arq_fa_final)
 ```
 
 ## Run the factor analysis
 
-Run the factor analysis with the chosen number of factors.
+*Run the factor analysis with the chosen number of factors.*
+
+I conducted an **exploratory factor analysis (EFA)** using principal axis factoring with an *oblimin/oblique* rotation on 23 variables. An oblique rotation was selected because the underlying latent constructs were expected to be related, allowing for correlations between factors.
+
+Factor scores were calculated using regression scoring. The correlations between the estimated factor scores and the corresponding factors were high (F1 = 0.94, F2 = 0.93, indicating that the scores accurately represent the underlying factors. The proportion of variance in each factor explained by the scores (multiple R square) was also high (F1 = 0.89, F2 = 0.86). The minimum correlations of the possible factor scores with the factors ranged were F1 = 0.77 and F2 = 0.70, further confirming that the factor scores provide a reliable representation of the factor structure.
 
 ```{r}
+efa <- fa(correlation, nfactors = 2, n.obs = nrow(arq_fa_final), fm = "pa", rotate = "oblimin")
+efa
+```
+
+*Sort the communality scores in decreasing order.*
+
+After conducting the EFA, the factor loadings and communality scores of all variables were examined, yielding the following factor structure. Negative loadings due to reversed items are marked in *italic* style. 
+
+**F1:** ar7 (0.68), ar5 (0.64), ar13 (0.62), ar4 (0.61), ar15 (0.59), ar12 (0.51), ar23 (0.49), ar20 (0.47), ar1 (0.40), ar25 (0.36), *ar16 (-0.40)*, *ar21 (-0.36)*, *ar19 (-0.42)*, *ar24 (-0.69)*, *ar28 (-0.43)*
+
+**F2:** ar6 (0.73), ar27 (0.63), ar17 (0.66), ar12 (0.26), ar11 (0.35), ar8 (0.34), ar2 (0.59), ar18 (0.53), ar21 (-0.13), ar9 (0.33), *ar19 (-0.16)*
+
+Almost no variables exceeded 0.7, indicating weak to moderate relationship between items and their respective factors. Several items (notably, ar9, ar11 and ar25) showed similar loadings on both factors as well. These items were retained to preserve content validity, but their cross-loadings suggest that they may be related to multiple latent constructs.
+
+The following items showed weak communalites, thus these were removed from further analysis as results suggested these items do not explain a high amount of variance within their respective factors:
+- ar16 (h2 = 0.25)
+
+- ar8 (h2 = 0.14)
+
+- ar28 (h2 = 0.14)
+
+```{r}
+# factor loadings
+loadings <- efa$loadings
+
+# mean communality scores
+h2 <- efa$communality
+
+# joining loadings and mean communality scores
+loadings_mat <- as.data.frame(as.matrix(unclass(loadings)))
+n_factors <- ncol(loadings_mat)
+colnames(loadings_mat) <- paste0("F", 1:n_factors)
+
+tab <- cbind(loadings_mat, h2 = round(h2, 2))
+
+#arranging according to commuanility descending order
+tab <- tab %>%
+  rownames_to_column(var = "Item") %>%
+  arrange(desc(h2))
+
+kable(tab, caption = "Rotated Pattern Loadings (Oblimin) and Communalities", digits = 2) %>%
+  kable_styling(full_width = FALSE)
+```
+
+
+```{r}
+arq_fa_comm <- arq_fa %>%
+  select(-c(3, 8, 10, 14, 16, 22, 26, 28))
+
+correlation2 <- cor(
+  arq_fa_comm,
+  use = "pairwise.complete.obs"
+)
+
+efa2 <- fa(
+  arq_fa_comm,
+  nfactors = 2,
+  fm = "pa",
+  rotate = "oblimin",
+  scores = "regression"
+)
+efa2
+
+loadings2 <- efa2$loadings
+h2_2 <- efa2$communality
+
+# joining loadings and mean communality scores
+loadings_mat2 <- as.data.frame(as.matrix(unclass(loadings2)))
+n_factors2 <- ncol(loadings_mat2)
+colnames(loadings_mat2) <- paste0("F", 1:n_factors2)
+
+tab2 <- cbind(loadings_mat2, h2_2 = round(h2_2, 2))
+
+#arranging according to commuanility descending order
+tab2 <- tab2 %>%
+  rownames_to_column(var = "Item") %>%
+  arrange(desc(h2_2))
+
+kable(tab2, caption = "Rotated Pattern Loadings (Oblimin) and Communalities", digits = 2) %>%
+  kable_styling(full_width = FALSE)
 
 ```
 
-Sort the communality scores in decreasing order.
+
+Following the exclusion process, I conducted another EFA analysis with Principal Axis Factoring oblimin/oblique rotation on the remaining 20 variables as well.
+
+The correlations between the estimated factor scores and the corresponding factors remained unchanged  *(F1 = 0.94, F2 = 0.93)*, indicating that the scores still accurately represent the underlying factors. The proportion of variance in each factor explained by the scores (multiple R square) also remained high *(F1 = 0.89, F2 = 0.87)*. The minimum correlations of the possible factor scores with the factors showed slight improvement, *F1 = 0.78 and F2 = 0.75*, further confirming that the factor scores provide a reliable representation of the factor structure. 
+
+Examination of factor loadings and communality scores yielded the following factor structure (with reversed scores flagged in *italic* style)
+
+**F1:** ar7 (0.67), ar5 (0.81), ar13 (0.77), ar4 (0.63), ar15 (0.50), ar23 (0.53), ar20 (0.38), ar12 (0.45), ar1 (0.38), ar25 (0.32), ar11 (0.30), *ar19 (-0.30)*, *ar24 (-0.54)*
+
+**F2:** ar6 (0.81), ar27 (0.70), ar17 (0.60), ar2 (0.60), ar18 (0.53), ar21 *(-0.28)*, ar9 (0.39)
+
+Based on the content of the items, **Factor1 (F1)** was labeled **Animal Rights**, reflecting moral opposition to the use and exploitation of animals, whereas **Factor2 (F2)** was labeled **Animal Research**, capturing attitudes toward the necessity, regulation, and validity of animal research.
+
+*Visualize the factor structure.*
+
+Two **bar plots** were created to display the factor loadings of the items included in the analysis, presented separately for Factor 1 ("Animal research") and Factor 2 (Animal rights).
 
 ```{r}
+tab3 <- cbind(loadings_mat2, h2_2 = round(h2_2, 2))
 
-```
+tab3 <- tab3 %>%
+  rownames_to_column(var = "Item") %>%
+  mutate(
+    Factor = case_when(
+      abs(F1) >= abs(F2) ~ "Animal rights",
+      abs(F2) > abs(F1)  ~ "Animal research"
+    )
+  ) %>%
+  arrange(desc(h2_2))
 
-Calculate the mean communality scores.
 
-```{r}
+loadings_plot <- tab3 %>%
+  pivot_longer(
+    cols = c(F1, F2),
+    names_to = "LatentFactor",
+    values_to = "Loading"
+  ) %>%
+  # keep only the primary loading for each item
+  filter(
+    (Factor == "Animal rights"  & LatentFactor == "F1") |
+    (Factor == "Animal research" & LatentFactor == "F2")
+  )
 
-```
-
-Show the factor loadings for the chosen factor structure.
-
-```{r}
-
-```
-
-Visualize the factor structure.
-
-```{r}
-
+ggplot(loadings_plot, aes(Item, abs(Loading), fill = Loading)) +
+  facet_wrap(~ Factor, nrow = 1) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  scale_fill_gradient2(
+    name = "Loading",
+    high = "#C8A2C8",
+    mid  = "#B0E0E6",
+    low  = "#C1E1C1",
+    midpoint = 0,
+    guide = "none"
+  ) + labs(title = "Factor structure",
+           x = "Items, arranged according to communality scores (highest to lowest)",
+           y = "Loading strength") +
+  theme_bw(base_size = 10)
 ```
 
 ## Run linear regression
 
-Calculate the factor scores.
+*Calculate the factor scores.*
 
 ```{r}
+factor_scores <- as.data.frame(efa2$scores)
+colnames(factor_scores) <- c("Animal_rights", "Animal_research")
 
 ```
 
-Bind factor scores to the original dataset.
+
+*Bind factor scores to the original dataset.*
 
 ```{r}
+arq_scored <- arq_new %>% 
+    select(-c(3, 8, 10, 14, 16, 22, 26, 28))
 
+arq_fa_regression <- bind_cols(arq_scored, factor_scores)
 ```
 
-Run the logistic regression.
+*Run the linear regression.*
+
+A **linear regression** was conducted to examine whether the *Animal rights* (F1) and *Animal research* (F2) factors predicted liberal political attitudes (1 = conservative, 5 = liberal). The model was statistically significant, F(2, 146) = 4.04, p = .020, explaining 5.2% of the variance in liberalism (R² = .05, adjusted R2 = .04). The *Animal rights* factor was a significant positive predictor of liberal attitudes (B = 0.27, SE = 0.10, t = 2.60, p = .010), whereas the *Animal reserarch* factor was not (B = −0.11, SE = 0.11, t = −1.05, p = .29).
 
 ```{r}
+regression <- lm(
+  liberal ~ Animal_rights + Animal_research,
+  data = arq_fa_regression
+)
 
+summary(model_lm)
 ```
+
+
+# Summary
+
+Based on the scree plot and parallel analysis, **two factors** were retained for the exploratory factor analysis. An oblique (oblimin) rotation was used, as the questionnaire measured related latent traits (Attitudes towards animal rights and animal research). However, a relatively high correlation was observed among factors in the final factor structure (0.63), with significant cross-loadings also detected, thus these results should be interpreted with caution. A high portion of the 20 items loaded moderately (above |0.50|) on one of the two factors, which were named **Animal rights** and **Animal research**, in accordance with the questionnaire’s content and intended purpose. A total of 7 items were excluded from the EFA analysis, prompting further research on the validity of the questionnaire. 
+
+A linear regression model was also employed to determine if the questinnaire is a reliable tool in predicting political identity. Results indicate that positive attitudes towards *Animal rights* is a significant predictor of liberal political identity, however, the total factor structure only explained around 5% of the total variance, indicating low statistical power. 
 
