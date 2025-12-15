@@ -109,13 +109,13 @@ Talk about the limitations of your study and findings.
 
 Read the Animal Rights Scale (ARQ) dataset from the 'data/' folder. Pay attention to the extension.
 
-```{r}
+```{r read}
 arq <- read_csv("/Users/illesanna/Desktop/DOKUMENTUMOK/ELTE/MESTER/semester1/data_analysis_r/KPTUXW_interim_assignments/KPTUXW_interim_assignments/data/assignment_5_dataset.csv")
 ```
 
 ## EDA
 
-```{r}
+```{r summary}
 summary(arq)
 ```
 
@@ -125,7 +125,7 @@ Recode the sex and party variables as factor type variables with the following l
   * sex: 1 - male, 2 - female
   * party: 1 - democrat, 2 - republican, 3 - other, 4 - none
 
-```{r}
+```{r clean}
 arq_new <- arq %>% 
   mutate(
     sex = factor(sex,
@@ -143,7 +143,7 @@ __Note:__ Remember to only include the variables of the questionnaire that will 
 
 *Create the correlation matrix.*
 
-```{r}
+```{r correlation}
 arq_fa <- arq_new %>%
   select(-c(29, 30, 31))
 
@@ -160,7 +160,7 @@ correlation1 <- cor(
 
 A correlation plot was created in order to check for significant correlations among items. A particularly strong positive correlation can be observed between ar5 and ar 13 (0.83), ar12 and ar15 (0.66) indicating a common underlying latent variable.
 
-```{r}
+```{r corrplot}
 corrplot(correlation1, method = "color",
          type = "upper",          
          tl.col = "black",         
@@ -176,7 +176,7 @@ corrplot(correlation1, method = "color",
 
 The suitability of the data for factor analysis was assessed using the **Kaiser-Meyer-Olkin (KMO)** measure of sampling adequacy and **Bartlett’s test of sphericity**. The KMO statistic indicated high sampling adequacy *(KMO = 0.88)*. Bartlett’s test was significant *(p < .001)*, suggesting that the correlation matrix was not an identity matrix and that factor analysis was appropriate. 
 
-```{r}
+```{r kmo}
 KMO(arq_fa)
 
 cortest.bartlett(
@@ -189,7 +189,7 @@ cortest.bartlett(
 
 **Mardia’s tests** indicated that the data deviated from multivariate normality. Both **skewness** *(b1p = 235.50, skew(378) = 5887.38, p < .001)* and **kurtosis** *(b2p = 920.52, kurtosis = 12.03, p < .001)* were significant, suggesting non-normality in the multivariate distribution of the 28 variables included in the analysis (n = 150).
 
-```{r}
+```{r mardia}
 mardia <- mardia(arq_fa)
 mardia
 ```
@@ -202,12 +202,12 @@ Skewness and kurtosis were individually checked across all 28 variables included
 
 I opted for excluding these variables from further analysis in order to receive a clear factor structure not affected by extreme deviations from normality. 
 
-```{r}
+```{r skew-kurtosis}
 describe(arq_fa)[, c("skew", "kurtosis")]
 ```
 
 
-```{r}
+```{r variable exclusion}
 arq_fa_clean <- arq_fa %>%
   select(-c(3, 10, 14, 26))
 
@@ -217,7 +217,7 @@ mardia_clean
 
 As the **Mardia's test** still indicated significant deviation from normality, I further excluded ar22 from the analysis as this variable also demonstrated moderate skewness and kurtosis.
 
-```{r}
+```{r data final}
 arq_fa_final <- arq_fa %>%
   select(-c(3, 10, 14, 22, 26))
 
@@ -239,7 +239,7 @@ To determine the number of factors, both a **scree plot** and a **parallel analy
 
 I retained a total of *two factors* as this point also marks the point of inflection (elbow).
 
-```{r}
+```{r scree-parallel}
 scree(arq_fa_final)
 
 fa.parallel(arq_fa_final)
@@ -253,7 +253,7 @@ I conducted an **exploratory factor analysis (EFA)** using principal axis factor
 
 Factor scores were calculated using regression scoring. The correlations between the estimated factor scores and the corresponding factors were high (F1 = 0.94, F2 = 0.93, indicating that the scores accurately represent the underlying factors. The proportion of variance in each factor explained by the scores (multiple R square) was also high (F1 = 0.89, F2 = 0.86). The minimum correlations of the possible factor scores with the factors ranged were F1 = 0.77 and F2 = 0.70, further confirming that the factor scores provide a reliable representation of the factor structure.
 
-```{r}
+```{r efa1}
 efa <- fa(correlation, nfactors = 2, n.obs = nrow(arq_fa_final), fm = "pa", rotate = "oblimin")
 efa
 ```
@@ -275,7 +275,7 @@ The following items showed weak communalites, thus these were removed from furth
 
 - ar28 (h2 = 0.14)
 
-```{r}
+```{r loading-h2}
 # factor loadings
 loadings <- efa$loadings
 
@@ -299,7 +299,7 @@ kable(tab, caption = "Rotated Pattern Loadings (Oblimin) and Communalities", dig
 ```
 
 
-```{r}
+```{r efa2}
 arq_fa_comm <- arq_fa %>%
   select(-c(3, 8, 10, 14, 16, 22, 26, 28))
 
@@ -354,7 +354,7 @@ Based on the content of the items, **Factor1 (F1)** was labeled **Animal Rights*
 
 Two **bar plots** were created to display the factor loadings of the items included in the analysis, presented separately for Factor 1 ("Animal research") and Factor 2 (Animal rights).
 
-```{r}
+```{r fa-viz}
 tab3 <- cbind(loadings_mat2, h2_2 = round(h2_2, 2))
 
 tab3 <- tab3 %>%
@@ -401,7 +401,7 @@ ggplot(loadings_plot, aes(Item, abs(Loading), fill = Loading)) +
 
 *Calculate the factor scores.*
 
-```{r}
+```{r fa-scores}
 factor_scores <- as.data.frame(efa2$scores)
 colnames(factor_scores) <- c("Animal_rights", "Animal_research")
 
@@ -410,7 +410,7 @@ colnames(factor_scores) <- c("Animal_rights", "Animal_research")
 
 *Bind factor scores to the original dataset.*
 
-```{r}
+```{r fa-scores-bind}
 arq_scored <- arq_new %>% 
     select(-c(3, 8, 10, 14, 16, 22, 26, 28))
 
@@ -421,7 +421,7 @@ arq_fa_regression <- bind_cols(arq_scored, factor_scores)
 
 A **linear regression** was conducted to examine whether the *Animal rights* (F1) and *Animal research* (F2) factors predicted liberal political attitudes (1 = conservative, 5 = liberal). The model was statistically significant, F(2, 146) = 4.04, p = .020, explaining 5.2% of the variance in liberalism (R² = .05, adjusted R2 = .04). The *Animal rights* factor was a significant positive predictor of liberal attitudes (B = 0.27, SE = 0.10, t = 2.60, p = .010), whereas the *Animal reserarch* factor was not (B = −0.11, SE = 0.11, t = −1.05, p = .29).
 
-```{r}
+```{r regression}
 regression <- lm(
   liberal ~ Animal_rights + Animal_research,
   data = arq_fa_regression

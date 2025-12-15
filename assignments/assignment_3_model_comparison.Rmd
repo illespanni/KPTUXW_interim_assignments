@@ -1,9 +1,7 @@
 ---
-title: "Assignment 3: Model comparison"
-author: "Marton Kovacs"
+title: "Assignment 3: Model comparison solutions"
+author: "Anna Noemi Illes"
 output: html_document
-editor_options: 
-  chunk_output_type: console
 ---
 
 In this lab assignment you are going to work with (simulated) data related to perioperative pain and its psychological and hormonal predictors. In the assignment you will assess the added benefit of including some psychological and hormonal predictors to the already established demographic predictors of pain.
@@ -56,68 +54,142 @@ In your discussion of the findings, briefly interpret the results of the above a
 
 ## Read the data
 
-Read the dataset used in this assignment. Pay attention to the extension of the datafile.
+*Read the dataset used in this assignment. Pay attention to the extension of the datafile.*
 
-```{r}
+```{r setup, include=FALSE}
+library(tidyverse)
+library(readxl)
+library(car)
+library(corrplot)
+library(lmtest)
+library(sandwich)
+library(psych)
+```
 
+
+```{r read}
+df <- read_xlsx("/Users/illesanna/Desktop/DOKUMENTUMOK/ELTE/MESTER/semester1/data_analysis_r/KPTUXW_interim_assignments/KPTUXW_interim_assignments/data/assignment_3_dataset.xlsx")
 ```
 
 ## Data and model diagnostics 
 ### Data diagnostics
 #### Descriptives of the variables
 
-Run an exploratory data analysis (EDA) to investigate the dataset.
+*Missingness pattern*
 
-```{r}
+No missing items were detected.
 
-```
-
-#### Correct coding errors
-
-If you find values in the dataset during the EDA, that are not correct based on the provided descriptions of the variables of the dataset please correct them here.
-
-```{r}
+```{r missingness}
+sapply(df, function(x) sum(is.na(x)))
 
 ```
+
+
+##### Correct coding errors
+
+*If you find values in the dataset during the EDA, that are not correct based on the provided descriptions of the variables of the dataset please correct them here.*
+
+An **incorrect mindfulness value** was identified at observation 42, exceeding the scale maximum of 6. After correcting this value, **binary variables (sex) were recoded** such that 0 represented male and 1 represented female for subsequent analysis.
+
+```{r clean}
+glimpse(df_clean %>% select(-ID))
+
+summary(df_clean %>% select(-ID))
+
+df_desc <- df_clean %>%
+  select(-ID) %>%
+  summarise(
+    across(where(is.numeric), 
+           list(
+             mean = ~mean(.x, na.rm = TRUE),
+             sd   = ~sd(.x, na.rm = TRUE),
+             min  = ~min(.x, na.rm = TRUE),
+             max  = ~max(.x, na.rm = TRUE)
+           ))
+  )
+
+df_desc
+
+df_clean <- df %>%
+  mutate(mindfulness = if_else(mindfulness > 6, 6, mindfulness)) %>%
+  mutate(sex = case_when(
+      sex == "male"   ~ 0,
+      sex == "female" ~ 1)
+  )
+```
+
+##### EDA
+
+To examine the relationships among variables and their association with pain, a **correlation matrix** was computed. All variables demonstrated small to moderate correlations with pain, with cortisol showing the strongest associations *(serum: r = .26; saliva: r = .28)*. Consistent with prior research, age and mindfulness were negatively correlated with pain, indicating that older participants and those with higher dispositional mindfulness tended to report lower levels of pain.
+
+For a detailed overview of the correlations across all variables, refer to the correlation plot below. 
+
+```{r correlation}
+correlation <- cor(
+  df_clean[, -1],
+  use = "pairwise.complete.obs"
+)
+
+corrplot(correlation, method = "color",
+         type = "upper",          
+         tl.col = "black",         
+         tl.srt = 45,             
+         addCoef.col = "black",   
+         number.cex = 0.7,         
+         diag = FALSE) 
+```
+
+
 
 ### Model diagnostics
-#### Build the more complex model
+#### Build the simple model
 
-In order to test the more complex model for outliers and to test the assumptions first build the model.
+*In order to test the more complex model for outliers and to test the assumptions first build the model.*
 
-```{r}
+A **linear regression** analysis was conducted to examine whether age and sex can predict pain level scores. The model indicated that age was negatively associated with pain (B = -0.08), such that pain slightly decreased with increasing age. Sex showed a moderate positive association with pain (B = 0.46), indicating that females reported higher pain than males.
 
+Pain = 8.21 - 0.08(age) + 0.46(sex)
+
+```{r model0}
+m0 <- lm(pain ~ age + sex, data = df_clean)
+m0
 ```
 
-#### Checking for influential outliers
+##### Checking for influential outliers
 
 Check for outlier values in the model.
 
-```{r}
+A plot of **residuals versus fitted values** was examined to assess the linearity of the model and to assess influential outliers. A single outlier, **observation 142** was detected as a significant outlier, further supported by studentized residuals *(r_student = 30.57, p < .001)*. 
 
+```{r outliers model0}
+plot(m0, which = 1)
+outlierTest(m0)
 ```
 
-#### Checking assumptions
 
-Check the normality assumption.
+##### Checking assumptions
 
-```{r}
+*Check the normality assumption.*
 
+A **Q-Q plot** was created to check the normal distibution of residuals. Visual inspection suggest an approximately normal distribution of residuals. A **Shapiro-Wilk** test was also employed to further assess normality, however, the test resulted a significant deviation from normality, likely due to the outlier score observation 142, *(W = 0.34, p < .001)*.
+
+```{r normality model0}
+qqnorm(resid(m0))
+qqline(resid(m0), col = "red")
+
+shapiro.test(resid(m0))
 ```
 
-Check the linearity assumption.
 
-```{r}
+*Check the homoscedasticty assumption (homogeneity of variance).*
 
+The assumption of homoscedasticity was tested using the **Breusch-Pagan test**. The result was non-significant, indicating that that residual variance is constant across levels of the predictors, BP(2) = 1.03, p = .60.
+
+```{r bp0}
+lmtest::bptest(m0)
 ```
 
-Check the homoscedasticty assumption (homogeneity of variance).
-
-```{r}
-
-```
-
-Check the multicollinearity assumption.
+*Check the multicollinearity assumption.*
 
 (VIF above 5), or a VIF threshold of 3 is recommended in this paper: http://onlinelibrary.wiley.com/doi/10.1111/j.2041-210X.2009.00001.x/full
 
@@ -125,67 +197,138 @@ Some info about VIF:
 https://statisticalhorizons.com/multicollinearity
 http://blog.minitab.com/blog/understanding-statistics/handling-multicollinearity-in-regression-analysis
 
-```{r}
+**Variance inflation factors (VIFs)** were examined to assess multicollinearity. All VIFs were close to 1 (age = 1.003, sex = 1.003), indicating no evidence of multicollinearity among the predictors.
 
+```{r vif0}
+car::vif(m0)
 ```
 
-### Making decision based on model diagnostics
+##### Making decision based on model diagnostics
 
-If based on the assumption tests you decide to drop a predictor variable you should do that here. Create your updated model.
+*If based on the assumption tests you decide to drop a predictor variable you should do that here. Create your updated model.*
 
-```{r}
+Due to results above in the residuals vs fitted values plot, as well as studentized residuals and significant deviation from normality according to the Shapiro-Wilk test, **observation 142 was excluded and a new model (m1) was created**. 
 
+The new model (m1) indicated that age was still negatively associated with pain (B = -0.09), such that pain slightly decreased with increasing age. Sex showed a mild negative association with pain (B = -0.09), indicating that males report slightly higher pain levels than women.
+
+Pain = 8.49 - 0.09(age) - 0.09(sex)
+
+```{r model1}
+df_normal <- df_clean[-142, ]
+
+m1 <- lm(pain ~ age + sex, data = df_normal)
+m1
 ```
 
-#### Checking outliers of the updated model
+##### Checking outliers of the updated model
 
-```{r}
+The plot of **residuals versus fitted values** was examined to assess the linearity of the new model (m1) and to assess influential outliers. In the updated model, residuals were appoximately evenly distributed and centered around zero, with a slight curvature, suggesting a mild non-linearity between predictors and outcome. Outliers flagged were not excluded from subsequent analysis.
 
+```{r linearity model1}
+plot(m1, which = 1)
+outlierTest(m1)
 ```
 
-#### Checking assumptions of the updated model
 
-Normality assumption
+##### Checking assumptions of the updated model
 
-```{r}
+*Normality assumption*
 
+A **Q-Q plot** was created to check the normal distibution of residuals in the updated model (m1) following exclusion of the outlier item. Visual inspection suggest an approximately normal distribution of residuals, with a slight curvature at the tails. A **Shapiro-Wilk** test was also employed to assess normality, with results indicating an even distribution, *(W = .99, p = .19)*.
+
+```{r normality model1}
+qqnorm(resid(m1))
+qqline(resid(m1), col = "red")
+
+shapiro.test(resid(m1))
 ```
 
-Linearity assumption
+*Homoscedasticty assumption (homogeneity of variance)*
 
-```{r}
+A **Breusch-Pagan test** was conducted to assess the assumption of homoscedasticity in the updated model (m1). Results indicated a significant violation of this assumption, suggesting the presence of heteroscedasticity in the model, *BP(2) = 6.78, p = .034*.
 
+```{r bp1}
+lmtest::bptest(m1)
 ```
 
-Homoscedasticty assumption (homogeneity of variance)
+*Multicollinearity assumption*
 
-```{r}
+**Variance inflation factors (VIFs)** were examined to assess multicollinearity. All VIFs were close to 1 (age = 1.003, sex = 1.003) and remained near unchanged from the previous model, indicating no evidence of multicollinearity among the predictors.
 
+```{r vif1}
+car::vif(m1)
 ```
 
-Multicollinearity assumption
 
-```{r}
+#### Build the more complex model
 
+*In order to test the more complex model for outliers and to test the assumptions first build the model.*
+
+A **multiple linear regression** (m2) was conducted to examine the predictors of pain, including *age, sex, trait anxiety (STAI_trait), pain catastrophizing (pain_cat), mindfulness and cortisol (serum, saliva)*. I used the dataset in which observation 142 is already excluded. 
+
+Pain catastrophizing was positively related to pain (B = 0.10), as was cortisol mesaured from saliva (B = 0.44), suggesting that higher catastrophizing and higher salivary cortisol levels are associated with greater reported pain. Mindfulness was negatively associated with pain (B = -0.13), indicating that higher mindfulness was linked to lower pain levels. Serum cortisol (cortisol extracted from blood) showed a small positive association (B = 0.17). Age (B = -0.02) and trait anxiety (B = -0.03) exhibited negligible effects in this model, while sex was negatively associated with pain (B = -0.32), indicating that females reported slightly lower pain than males.
+
+Pain = 1.65 - 0.02(age) - 0.32(sex) - 0.03(STAI_trait) + 0.1(pain_cat) - 0.13(mindfulness) + 0.17(cortisol_serum) + 0.44(cosrtisol_saliva)
+
+```{r model2}
+m2 <- lm(pain ~ age + sex + STAI_trait + pain_cat + mindfulness + cortisol_serum + cortisol_saliva, data = df_normal)
+m2
+```
+
+#### Checking assumptions and outliers
+
+*Checking linearity and outliers in the model.*
+
+A **residuals versus fitted values** plot was created to assess the linearity of the model and to assess influential outliers. In the model (m2), residuals were appoximately evenly distributed and centered around zero, suggesting a linear connection between predictors and outcome. Outliers flagged were not excluded from subsequent analysis.
+
+```{r linearity model2}
+plot(m2, which = 1)
+outlierTest(m2)
+```
+
+
+*Check the normality assumption.*
+
+A **Q-Q plot** was created to check the normal distibution of residuals in the complex model (m2). Visual inspection suggest an approximately normal distribution of residuals, with a slight curvature at the tails. A **Shapiro-Wilk** test was also employed to assess normality, with results indicating an even distribution, *(W = 0.99, p = 0.82)*.
+
+```{r normality model2}
+qqnorm(resid(m2))
+qqline(resid(m2), col = "red")
+
+shapiro.test(resid(m2))
+```
+
+*Check the homoscedasticty assumption (homogeneity of variance).*
+
+The **Breusch-Pagan test** indicated no evidence of heteroscedasticity in the model, *BP(7) = 6.75, p = .455*. 
+
+```{r bp2}
+lmtest::bptest(m2)
+```
+
+*Check the multicollinearity assumption.*
+
+**Variance inflation factors (VIFs)** indicated low multicollinearity for age (VIF = 1.49), sex (VIF = 1.14), trait anxiety (VIF = 2.12), pain catastrophizing (VIF = 1.93), and mindfulness (VIF = 1.54), whereas serum cortisol (VIF = 5.99) and salivary cortisol (VIF = 6.54) showed moderate multicollinearity.
+
+```{r vif2}
+car::vif(m2)
 ```
 
 ## Model comparison
 
-Create the simple model and get the results of the model that needs to be reported based on the What to report section.
+*Compare the two models.*
 
-```{r}
+To compare models, I used a nested F-test, which measures whether adding predictors significantly improve model fit.
 
+The **simple model (m1)**, which served as the baseline models of the hierarchical multiple regression, included factors age and sex. The baseline explained a total of 8% *(R2 = .08, adjusted R2 = .07, F(2,155) = 6.77, p < .05)* of the variance in the level of pain reported. The **complex model (m2)**, which included psychological and hormonal variables such as anxiety, dispositional mindfulness, pain catastrophising and cortisol (both from saliva and blood) besides age and sex, explained a total of 35.8% of the total variance in the level of pain *(R2 = .35, adjusted r2 = .33, f (7, 150) = 12.0, p < .001)*. The addition of these variables accounted for and additional 27.8% percent of the variance comapred to the baseline.
+
+In the simple model (m1), the **Akaike Information Criterion (AIC)** equaled 575, while in the second model the AIC value was 528. This suggests that adding psychological and hormonal factors improves model fit compared to the baseline.
+
+```{r model comparison}
+anova(m1, m2)
+broom::glance(m1)
+broom::glance(m2)
 ```
 
-Create the more complex model based on the results of the model diagnostics. Also, get the results that needs to be reported based on the What to report section.
 
-```{r}
-
-```
-
-Compare the two models.
-
-```{r}
-
-```
-
+**Summary:** The results indicate that age and sex alone explain only a small proportion of variance in pain. In contrast, the inclusion of psychological (trait anxiety, pain catastrophizing, mindfulness) and biological (serum and salivary cortisol) variables substantially improves the explanatory power of the model, accounting for an additional 27.8% of the variance in pain. This finding suggests that pain is more strongly associated with psychological and physiological factors than with basic demographic characteristics alone.
