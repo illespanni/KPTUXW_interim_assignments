@@ -2,8 +2,6 @@
 title: "Assignment 1: The cocktail bar (data transformation and manipulation) solutions"
 author: "Anna Noemi Illes"
 output: html_document
-editor_options: 
-  chunk_output_type: console
 ---
 
 # Skills needed to solve this assignment
@@ -120,7 +118,7 @@ rare_ingredients <- cocktail_cleaned %>%
   arrange(n_ingredients) %>% 
   filter(n_ingredients == 1) 
 
-# is the ingredient "simple" a mistake? I checke the original data and there wasn't any additional information there so it wasn't accidentally deleted
+# is the ingredient "simple" a mistake? I checked the original data and there wasn't any additional information so nothing was deleted after splitting each cell
 ```
 
 ## 8. Which cocktail has an ingredient that is only used in one cocktail?
